@@ -53,13 +53,13 @@ public class DiscordBot extends ListenerAdapter {
                                     // Check the file size
                                     System.out.println(upscaledImage.getAbsolutePath() + " size: " + Files.size(upscaledImage.toPath()) + "/ max size: " + MAX_FILE_SIZE + " bytes");
                                     if (upscaledImage.length() < MAX_FILE_SIZE) {
-                                        // Send the upscaled image back to the channel
-                                        event.getChannel().sendFile(upscaledImage).queue(message -> {
+                                        // Send the upscaled image back to the channel with the original message
+                                        event.getChannel().sendMessage(event.getMessage().getContentRaw()).addFile(upscaledImage).queue(message -> {
                                                     // Clean up temporary files
                                                     tempImage.delete();
                                                     upscaledImage.delete();
                                                     // Delete the original message
-                                                    if (!event.getAuthor().isBot()) {
+                                                    if (event.getAuthor().isBot()) {
                                                         event.getMessage().delete().queue();
                                                     }
                                                 },
@@ -72,7 +72,7 @@ public class DiscordBot extends ListenerAdapter {
                                         break; // Exit the loop if successful
                                     } else {
                                         // Adjust parameters
-                                        if(output_scale == 1){
+                                        if (output_scale == 1) {
                                             output_scale = model_scale--;
                                         } else {
                                             output_scale--;
