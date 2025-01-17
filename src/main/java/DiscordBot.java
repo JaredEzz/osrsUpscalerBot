@@ -32,12 +32,12 @@ public class DiscordBot extends ListenerAdapter {
                         File tempImage = new File("temp_" + attachment.getFileName());
                         attachment.downloadToFile(tempImage).thenAccept(downloadedFile -> {
                             try {
-                                File upscaledImage = new File("upscaled_" + attachment.getFileName().replace(".png", ".webp"));
-                                int scale = 4;
-                                int compress = 0;
+                                File upscaledImage = new File("upscaled_" + attachment.getFileName());
+                                int model_scale = 4;
+                                int output_scale = 4;
 
-                                while (scale >= 2) {
-                                    System.out.println("Attempting with scale: " + scale + " and compress: " + compress);
+                                while (model_scale >= 2) {
+                                    System.out.println("Attempting with model_scale: " + model_scale + " and output_scale: " + output_scale);
                                     // Run the upscayl CLI
                                     ProcessBuilder processBuilder = new ProcessBuilder(
                                             "C:\\Users\\jared\\upscayl-bin-20240601-103425-windows\\upscayl-bin.exe",
@@ -45,9 +45,8 @@ public class DiscordBot extends ListenerAdapter {
                                             "-o", upscaledImage.getAbsolutePath(),
                                             "-m", "C:\\Program Files\\Upscayl\\resources\\models",
                                             "-n", "digital-art-4x",
-                                            "-z", String.valueOf(scale),
-                                            "-c", String.valueOf(compress),
-                                            "-f", "webp"
+                                            "-z", String.valueOf(model_scale),
+                                            "-s", String.valueOf(output_scale)
                                     );
                                     processBuilder.inheritIO().start().waitFor();
 
@@ -59,6 +58,10 @@ public class DiscordBot extends ListenerAdapter {
                                                     // Clean up temporary files
                                                     tempImage.delete();
                                                     upscaledImage.delete();
+                                                    // Delete the original message
+                                                    if (!event.getAuthor().isBot()) {
+                                                        event.getMessage().delete().queue();
+                                                    }
                                                 },
                                                 throwable -> {
                                                     // Handle the error
@@ -69,11 +72,10 @@ public class DiscordBot extends ListenerAdapter {
                                         break; // Exit the loop if successful
                                     } else {
                                         // Adjust parameters
-                                        if (compress < 100) {
-                                            compress += 50; // Increase compression
+                                        if(output_scale == 1){
+                                            output_scale = model_scale--;
                                         } else {
-                                            scale--; // Decrease scale
-                                            compress = 0; // Reset compression
+                                            output_scale--;
                                         }
                                     }
                                 }
