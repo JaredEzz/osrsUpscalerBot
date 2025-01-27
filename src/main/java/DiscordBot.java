@@ -19,11 +19,15 @@ public class DiscordBot extends ListenerAdapter {
     public static final String THIS_BOT_ID = "822494927542943814";
     private static final long MAX_FILE_SIZE = 8 * 1024 * 1024; // 8MB
 
+    private boolean upscaling = false;
+    private boolean upscalingLimitHit = false;
+
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
+        final String[] contentRaw = {event.getMessage().getContentRaw()};
         System.out.println(
                 event.getGuild().getName() + ": " +
-                        event.getAuthor().getId() + ": " + event.getMessage().getContentRaw());
+                        event.getAuthor().getId() + ": " + contentRaw[0]);
         if (!event.getMessage().getAttachments().isEmpty() && !event.getAuthor().getId().equals(THIS_BOT_ID)) {
             event.getMessage().getAttachments().forEach(attachment -> {
                 if (attachment.getContentType().startsWith("image/")) {
@@ -33,11 +37,12 @@ public class DiscordBot extends ListenerAdapter {
                         attachment.downloadToFile(tempImage).thenAccept(downloadedFile -> {
                             try {
                                 File upscaledImage = new File("upscaled_" + attachment.getFileName());
-                                int model_scale = 4;
-                                int output_scale = 4;
+                                int startingScale = 4;
+                                int modelScale = startingScale;
+                                int outputScale = startingScale;
 
-                                while (model_scale >= 2) {
-                                    System.out.println("Attempting with model_scale: " + model_scale + " and output_scale: " + output_scale);
+                                while (modelScale >= 2) {
+                                    System.out.println("Attempting with modelScale: " + modelScale + " and outputScale: " + outputScale);
                                     // Run the upscayl CLI
                                     ProcessBuilder processBuilder = new ProcessBuilder(
                                             "C:\\Users\\jared\\upscayl-bin-20240601-103425-windows\\upscayl-bin.exe",
@@ -45,16 +50,25 @@ public class DiscordBot extends ListenerAdapter {
                                             "-o", upscaledImage.getAbsolutePath(),
                                             "-m", "C:\\Program Files\\Upscayl\\resources\\models",
                                             "-n", "digital-art-4x",
-                                            "-z", String.valueOf(model_scale),
-                                            "-s", String.valueOf(output_scale)
+                                            "-z", String.valueOf(modelScale),
+                                            "-s", String.valueOf(outputScale)
                                     );
                                     processBuilder.inheritIO().start().waitFor();
 
                                     // Check the file size
-                                    System.out.println(upscaledImage.getAbsolutePath() + " size: " + Files.size(upscaledImage.toPath()) + "/ max size: " + MAX_FILE_SIZE + " bytes");
+                                    long upscaleSize = Files.size(upscaledImage.toPath());
+                                    System.out.println(upscaledImage.getAbsolutePath() + " size: " + upscaleSize + "/ max size: " + MAX_FILE_SIZE + " bytes");
+                                    if (modelScale == startingScale && upscaleSize < MAX_FILE_SIZE && !upscalingLimitHit) {
+                                        upscaling = true;
+                                        outputScale++;
+                                        continue;
+                                    }
                                     if (upscaledImage.length() < MAX_FILE_SIZE) {
                                         // Send the upscaled image back to the channel with the original message
-                                        event.getChannel().sendMessage(event.getMessage().getContentRaw()).addFile(upscaledImage).queue(message -> {
+                                        if(contentRaw[0].isBlank()){
+                                            contentRaw[0] = " ";
+                                        }
+                                        event.getChannel().sendMessage(contentRaw[0]).addFile(upscaledImage).queue(message -> {
                                                     // Clean up temporary files
                                                     tempImage.delete();
                                                     upscaledImage.delete();
@@ -72,10 +86,13 @@ public class DiscordBot extends ListenerAdapter {
                                         break; // Exit the loop if successful
                                     } else {
                                         // Adjust parameters
-                                        if (output_scale == 1) {
-                                            output_scale = model_scale--;
+                                        if (outputScale == 1) {
+                                            outputScale = modelScale--;
                                         } else {
-                                            output_scale--;
+                                            outputScale--;
+                                        }
+                                        if(upscaling){
+                                            upscalingLimitHit = true;
                                         }
                                     }
                                 }
